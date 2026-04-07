@@ -76,7 +76,7 @@ export default function Sidebar({
       </div>
       
       {/* 路线图列表 - 自动填充空间 */}
-      <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar min-w-[200px]">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-2 custom-scrollbar min-w-[200px]">
         <div className="flex items-center justify-between text-gray-500 mb-4 px-2 whitespace-nowrap leading-none">
           <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">My Roadmaps</span>
           <button 
