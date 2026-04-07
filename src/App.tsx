@@ -7,8 +7,10 @@ import 'reactflow/dist/style.css';
 import { api } from './api';
 import PathioNode from './components/PathioNode';
 import NoteView from './components/NoteView'; 
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import ShareView from './components/ShareView';
+import Home from './components/Home';
+import AuthForm from './components/AuthForm';
 
 const nodeTypes = { pathio: PathioNode };
 
@@ -16,11 +18,8 @@ function Canvas() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const { screenToFlowPosition } = useReactFlow();
-
-  // 控制视图状态
   const [activeNode, setActiveNode] = useState<{id: string, title: string} | null>(null);
 
-  // 初始化加载数据
   useEffect(() => {
     api.get('/nodes').then(res => {
       const formatted = res.data.map((n: any) => ({
@@ -38,7 +37,6 @@ function Canvas() {
     });
   }, [setNodes, setEdges]);
 
-  // 处理节点点击：进入沉淀模式
   const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     setActiveNode({ id: node.id, title: node.data.label });
   }, []);
@@ -66,42 +64,43 @@ function Canvas() {
     api.put(`/nodes/${node.id}/position`, { pos_x: node.position.x, pos_y: node.position.y });
   }, []);
 
+  // 退出登录函数
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    window.location.href = '/'; // 强制刷新页面回到首页
+  };
+
   return (
     <div className="relative w-screen h-[200vh] transition-transform duration-700 ease-in-out overflow-hidden"
          style={{ transform: activeNode ? 'translateY(-50%)' : 'translateY(0%)' }}>
       
-      {/* 视图1：画布 */}
       <div className="w-full h-screen relative">
         <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeDragStop={onNodeDragStop}
-          onPaneClick={onPaneClick}
-          onConnect={onConnect}
-          onNodeClick={onNodeClick} // 注册节点点击事件
-          nodeTypes={nodeTypes}
-          fitView
+          nodes={nodes} edges={edges}
+          onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+          onNodeDragStop={onNodeDragStop} onPaneClick={onPaneClick}
+          onConnect={onConnect} onNodeClick={onNodeClick}
+          nodeTypes={nodeTypes} fitView
         >
           <Background color="#aaa" gap={20} />
           <Controls />
           <MiniMap />
         </ReactFlow>
-        {/* 顶部简单的装饰性标题 */}
-        <div className="absolute top-6 left-6 pointer-events-none">
-          <h2 className="text-2xl font-bold text-gray-800 opacity-50">知径 Pathio</h2>
+        <div className="absolute top-6 left-6 pointer-events-none flex flex-col gap-1">
+          <h2 className="text-2xl font-black text-pathio-900 opacity-80 italic">PATHIO</h2>
         </div>
+        {/* 退出按钮 */}
+        <button 
+          onClick={handleLogout}
+          className="absolute top-6 right-6 px-4 py-2 bg-white border border-gray-100 rounded-xl text-xs font-bold text-gray-400 hover:text-red-500 shadow-sm transition-all"
+        >
+          退出空间
+        </button>
       </div>
 
-      {/* 视图2：沉淀模式 */}
       <div className="w-full h-screen">
         {activeNode && (
-          <NoteView 
-            nodeId={activeNode.id} 
-            nodeTitle={activeNode.title} 
-            onBack={() => setActiveNode(null)} 
-          />
+          <NoteView nodeId={activeNode.id} nodeTitle={activeNode.title} onBack={() => setActiveNode(null)} />
         )}
       </div>
     </div>
@@ -109,17 +108,20 @@ function Canvas() {
 }
 
 export default function App() {
+  const [authToken, setAuthToken] = useState(localStorage.getItem('token'));
+  const location = useLocation();
+
+  // 每当路由变化时（比如从 /login 跳转到 /），重新检查 Token
+  useEffect(() => {
+    setAuthToken(localStorage.getItem('token'));
+  }, [location]);
+
   return (
     <Routes>
-      {/* 分享路由 */}
+      <Route path="/" element={authToken ? <ReactFlowProvider><Canvas /></ReactFlowProvider> : <Home />} />
+      <Route path="/login" element={<AuthForm mode="login" />} />
+      <Route path="/register" element={<AuthForm mode="register" />} />
       <Route path="/share/:token" element={<ShareView />} />
-      
-      {/* 默认编辑器路由 */}
-      <Route path="/" element={
-        <ReactFlowProvider>
-          <Canvas />
-        </ReactFlowProvider>
-      } />
     </Routes>
   );
 }

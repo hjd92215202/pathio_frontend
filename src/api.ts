@@ -1,8 +1,18 @@
-// frontend/src/api.ts
 import axios from 'axios';
 
-// 创建一个 axios 实例，指向我们刚刚启动的 Rust 后端
 export const api = axios.create({
   baseURL: 'http://127.0.0.1:3000/api',
   timeout: 5000,
+});
+
+// 添加请求拦截器
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    // 在每个请求的 Header 中注入 JWT Token
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, (error) => {
+  return Promise.reject(error);
 });
