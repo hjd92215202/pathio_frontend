@@ -8,10 +8,10 @@ html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  @apply bg-gray-50 text-gray-800 font-sans antialiased; /* 类似 Notion 的灰白底色 */
+  @apply bg-gray-50 text-gray-800 font-sans antialiased;
 }
 
-/* 隐藏滚动条但保留滚动功能 (为了画布更美观) */
+/* 隐藏滚动条但保留滚动功能 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -23,23 +23,58 @@ html, body, #root {
   background: transparent;
 }
 
-/* 让 Editor.js 的块在悬浮时稍微显示出操作按钮 */
-.ce-block {
-  @apply transition-all duration-200;
+/* ==========================================
+   Tiptap (ProseMirror) 深度定制样式
+   让编辑器看起来像 Notion
+   ========================================== */
+
+.ProseMirror {
+  outline: none !important;
+  @apply text-lg text-gray-700 leading-relaxed min-h-[60vh];
 }
 
-.ce-toolbar__content, .ce-block__content {
-  max-width: 900px; /* 控制编辑器内容宽度 */
+/* 只有在编辑器获得焦点时，让段落间距更清晰 */
+.ProseMirror p {
+  @apply mb-4;
 }
 
-/* 标题样式 */
-.ce-header {
-  padding: 0.5em 0;
-  margin: 0;
-  font-weight: 800;
+.ProseMirror h1 {
+  @apply text-4xl font-black text-gray-900 mb-6 mt-10 tracking-tight;
 }
 
-/* 占位符颜色 */
-.codex-editor--empty .ce-paragraph:before {
-  color: #d1d5db; 
+.ProseMirror h2 {
+  @apply text-2xl font-bold text-gray-800 mb-4 mt-8 tracking-tight;
+}
+
+.ProseMirror h3 {
+  @apply text-xl font-bold text-gray-800 mb-3 mt-6;
+}
+
+.ProseMirror ul {
+  @apply list-disc list-outside mb-4 ml-6 space-y-2;
+}
+
+.ProseMirror ol {
+  @apply list-decimal list-outside mb-4 ml-6 space-y-2;
+}
+
+.ProseMirror blockquote {
+  @apply border-l-4 border-pathio-500 pl-4 italic text-gray-600 bg-gray-50 py-2 my-6 rounded-r-lg;
+}
+
+.ProseMirror code {
+  @apply bg-gray-100 text-pathio-900 px-1.5 py-0.5 rounded font-mono text-sm;
+}
+
+.ProseMirror pre {
+  @apply bg-gray-900 text-gray-100 p-4 rounded-xl font-mono text-sm my-6 overflow-x-auto shadow-lg;
+}
+
+/* 💡 占位符效果：当一行是空的时候显示提示文字 */
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #d1d5db;
+  pointer-events: none;
+  height: 0;
 }
