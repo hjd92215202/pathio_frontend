@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 极简风全局设定 */
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  @apply bg-gray-50 text-gray-800 font-sans antialiased; /* 类似 Notion 的灰白底色 */
+}
+
+/* 隐藏滚动条但保留滚动功能 (为了画布更美观) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-full;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
