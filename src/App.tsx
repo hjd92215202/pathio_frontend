@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
-import ReactFlow, { Background, Controls, MiniMap, useNodesState, useEdgesState, ReactFlowProvider, useReactFlow, addEdge } from 'reactflow';
-import type { Node, Edge as FlowEdge, Connection } from 'reactflow';
+import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import ReactFlow, { Background, Controls, useNodesState, useEdgesState, ReactFlowProvider, useReactFlow, addEdge } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { api } from './api';
 import PathioNode from './components/PathioNode';
@@ -14,6 +14,10 @@ import AuthForm from './components/AuthForm';
 // 0. 全局常量与基础组件
 // ==========================================
 const NODE_TYPES = { pathio: PathioNode };
+const EDGE_TYPES = {};
+const CONTEXT_MENU_WIDTH = 160;
+const CONTEXT_MENU_HEIGHT = 220;
+const CONTEXT_MENU_GAP = 8;
 
 // 自定义高质感弹窗
 function Dialog({ 
@@ -124,6 +128,15 @@ function CanvasViewport({ roadmapId, onToggleSidebar, isSidebarCollapsed, setDia
     });
   }, [roadmapId, setNodes, setEdges]);
 
+  useEffect(() => {
+    if (!menu) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenu(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [menu]);
+
   // 双击创建
   const onPaneClick = useCallback((e: React.MouseEvent) => {
     setMenu(null);
@@ -170,12 +183,23 @@ function CanvasViewport({ roadmapId, onToggleSidebar, isSidebarCollapsed, setDia
     }
   };
 
+  const menuPosition = menu ? {
+    left: Math.max(
+      CONTEXT_MENU_GAP,
+      Math.min(menu.x + 5, window.innerWidth - CONTEXT_MENU_WIDTH - CONTEXT_MENU_GAP)
+    ),
+    top: Math.max(
+      CONTEXT_MENU_GAP,
+      Math.min(menu.y + 5, window.innerHeight - CONTEXT_MENU_HEIGHT - CONTEXT_MENU_GAP)
+    ),
+  } : null;
+
   return (
     <div className={`flex-1 relative bg-white overflow-hidden transition-all duration-500 shadow-2xl ${isSidebarCollapsed ? 'rounded-none' : 'rounded-l-[2.5rem] border-l border-white/10'}`} style={{ transform: 'translateZ(0)', backfaceVisibility: 'hidden', outline: '1px solid transparent' }}>
       
       {/* 修正后的右键菜单：在滑动容器外，确保坐标精准 */}
-      {menu && (
-        <div className="fixed z-[999] bg-white/95 backdrop-blur-xl border border-gray-100 shadow-2xl rounded-2xl py-1.5 w-40 overflow-hidden animate-in fade-in zoom-in-95 duration-100" style={{ top: menu.y + 5, left: menu.x + 5 }}>
+      {menu && menuPosition && createPortal(
+        <div className="fixed z-[999] bg-white/95 backdrop-blur-xl border border-gray-100 shadow-2xl rounded-2xl py-1.5 w-40 overflow-hidden animate-in fade-in zoom-in-95 duration-100" style={{ top: menuPosition.top, left: menuPosition.left }}>
           <button onClick={() => handleNodeAction('rename')} className="w-full text-left px-4 py-2 text-xs font-bold text-gray-600 hover:bg-pathio-50 transition-colors">重命名</button>
           <div className="h-px bg-gray-50 my-1 mx-2"></div>
           <button onClick={() => handleNodeAction('todo')} className="w-full text-left px-4 py-2 text-xs font-bold text-slate-400 hover:bg-slate-50">待研究</button>
@@ -183,7 +207,8 @@ function CanvasViewport({ roadmapId, onToggleSidebar, isSidebarCollapsed, setDia
           <button onClick={() => handleNodeAction('done')} className="w-full text-left px-4 py-2 text-xs font-bold text-emerald-500 hover:bg-emerald-50">已沉淀</button>
           <div className="h-px bg-gray-50 my-1 mx-2"></div>
           <button onClick={() => handleNodeAction('delete')} className="w-full text-left px-4 py-2 text-xs font-bold text-red-400 hover:bg-red-50 transition-colors">删除节点</button>
-        </div>
+        </div>,
+        document.body
       )}
 
       <div className="w-full h-[200vh] transition-transform duration-700 cubic-bezier(0.65, 0, 0.35, 1)" style={{ transform: activeNode ? 'translateY(-50%) translateZ(0)' : 'translateY(0%) translateZ(0)' }}>
@@ -191,7 +216,7 @@ function CanvasViewport({ roadmapId, onToggleSidebar, isSidebarCollapsed, setDia
           <button onClick={onToggleSidebar} className="absolute top-6 left-6 z-10 p-2 bg-white/80 backdrop-blur-md border border-gray-100 rounded-xl shadow-sm hover:text-pathio-500 transition-all">
             {isSidebarCollapsed ? <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 5l7 7-7 7M5 5l7 7-7 7" strokeWidth="2" strokeLinecap="round" /></svg> : <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 19l-7-7 7-7M19 19l-7-7 7-7" strokeWidth="2" strokeLinecap="round" /></svg>}
           </button>
-          <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={(p) => { if (roadmapId) { setEdges(eds => addEdge(p, eds)); api.post('/edges', { ...p, roadmap_id: roadmapId }); } }} onNodeClick={(_e, node) => { setMenu(null); setActiveNode({ id: node.id, title: node.data.label }); }} onPaneClick={onPaneClick} onNodeContextMenu={(e, node) => { e.preventDefault(); setMenu({ id: node.id, x: e.clientX, y: e.clientY }); }} onNodeDragStop={(_, node) => { api.put(`/nodes/${node.id}/position`, { pos_x: node.position.x, pos_y: node.position.y }); }} nodeTypes={NODE_TYPES} fitView>
+          <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={(p) => { if (roadmapId) { setEdges(eds => addEdge(p, eds)); api.post('/edges', { ...p, roadmap_id: roadmapId }); } }} onNodeClick={(_e, node) => { setMenu(null); setActiveNode({ id: node.id, title: node.data.label }); }} onPaneClick={onPaneClick} onNodeContextMenu={(e, node) => { e.preventDefault(); setMenu({ id: node.id, x: e.clientX, y: e.clientY }); }} onNodeDragStop={(_, node) => { api.put(`/nodes/${node.id}/position`, { pos_x: node.position.x, pos_y: node.position.y }); }} nodeTypes={NODE_TYPES} edgeTypes={EDGE_TYPES} fitView>
             <Background color="#f1f5f9" gap={24} />
             <Controls />
           </ReactFlow>
