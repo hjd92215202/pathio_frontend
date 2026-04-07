@@ -195,7 +195,7 @@ function CanvasViewport({ roadmapId, onToggleSidebar, isSidebarCollapsed, setDia
   } : null;
 
   return (
-    <div className={`flex-1 relative bg-white overflow-hidden transition-all duration-500 shadow-2xl ${isSidebarCollapsed ? 'rounded-none' : 'rounded-l-[2.5rem] border-l border-white/10'}`} style={{ transform: 'translateZ(0)', backfaceVisibility: 'hidden', outline: '1px solid transparent' }}>
+    <div className={`flex-1 relative bg-white overflow-hidden transition-all duration-500 shadow-2xl ${isSidebarCollapsed ? 'rounded-none' : 'rounded-l-[2.5rem]'}`}>
       
       {/* 修正后的右键菜单：在滑动容器外，确保坐标精准 */}
       {menu && menuPosition && createPortal(
@@ -211,8 +211,8 @@ function CanvasViewport({ roadmapId, onToggleSidebar, isSidebarCollapsed, setDia
         document.body
       )}
 
-      <div className="w-full h-[200vh] transition-transform duration-700 cubic-bezier(0.65, 0, 0.35, 1)" style={{ transform: activeNode ? 'translateY(-50%) translateZ(0)' : 'translateY(0%) translateZ(0)' }}>
-        <div className="w-full h-screen relative">
+      <div className="w-full h-[200vh] transition-transform duration-700 cubic-bezier(0.65, 0, 0.35, 1)" style={{ transform: activeNode ? 'translateY(-50%)' : 'translateY(0%)', willChange: 'transform' }}>
+        <div className="w-full h-screen relative bg-white">
           <button onClick={onToggleSidebar} className="absolute top-6 left-6 z-10 p-2 bg-white/80 backdrop-blur-md border border-gray-100 rounded-xl shadow-sm hover:text-pathio-500 transition-all">
             {isSidebarCollapsed ? <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 5l7 7-7 7M5 5l7 7-7 7" strokeWidth="2" strokeLinecap="round" /></svg> : <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 19l-7-7 7-7M19 19l-7-7 7-7" strokeWidth="2" strokeLinecap="round" /></svg>}
           </button>
