@@ -71,3 +71,36 @@ export default defineConfig([
   },
 ])
 ```
+
+## Share Note Refs Contract
+
+The frontend expects `GET /api/share/:token/notes/:nodeId` to be the authoritative share-note read API.
+
+Recommended response shape:
+
+```json
+{
+  "content": "# Example note",
+  "references": [
+    {
+      "id": "ref_123",
+      "node_id": "node_456",
+      "title": "Example attachment",
+      "url": "https://example.com"
+    }
+  ]
+}
+```
+
+Contract rules:
+
+- `references` should always be present on the share-note response, even when empty.
+- Use `[]` for no attachments. Do not omit the field and do not return `null`.
+- Attachment fields should be normalized to `id`, `node_id`, `title`, and `url`.
+
+Optional compatibility endpoint:
+
+- `GET /api/share/:token/notes/:nodeId/references`
+- Recommended response: `Reference[]`
+- Compatible response: `{ "references": Reference[] }`
+- If this endpoint is not implemented, return `404` or `405` so the frontend safely falls back to the main share-note payload.

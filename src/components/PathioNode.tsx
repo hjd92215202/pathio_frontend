@@ -1,4 +1,5 @@
-﻿import { Handle, Position } from '@xyflow/react';
+﻿import { Handle, Position, type NodeProps } from '@xyflow/react';
+import type { PathioNodeType } from '../types';
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   todo: { label: '待研究', color: 'bg-slate-100 text-slate-500' },
@@ -6,7 +7,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   done: { label: '已沉淀', color: 'bg-emerald-100 text-emerald-600' },
 };
 
-export default function PathioNode({ data, selected }: { data: any; selected: boolean }) {
+export default function PathioNode({ data, selected }: NodeProps<PathioNodeType>) {
   const currentStatus = data.status || 'todo';
   const statusStyle = STATUS_MAP[currentStatus] || STATUS_MAP.todo;
 
@@ -38,3 +39,4 @@ export default function PathioNode({ data, selected }: { data: any; selected: bo
     </div>
   );
 }
+

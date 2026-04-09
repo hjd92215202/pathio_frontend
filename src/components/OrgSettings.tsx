@@ -1,9 +1,10 @@
-// frontend/src/components/OrgSettings.tsx
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
+import { isAxiosError } from 'axios';
 import { api } from '../api';
+import type { OrgDetailsResponse, OrgInviteResponse, OrgMember } from '../types';
 
-export default function OrgSettings({ setGlobalOrgName }: { setGlobalOrgName?: (n: string) => void }) {
-  const [members, setMembers] = useState<any[]>([]);
+export default function OrgSettings({ setGlobalOrgName }: { setGlobalOrgName?: (name: string) => void }) {
+  const [members, setMembers] = useState<OrgMember[]>([]);
   const [orgName, setOrgName] = useState('我的研究组织');
   const [plan, setPlan] = useState<'free' | 'team'>('free');
   const [inviteLink, setInviteLink] = useState('');
@@ -12,12 +13,12 @@ export default function OrgSettings({ setGlobalOrgName }: { setGlobalOrgName?: (
 
   const fetchOrgDetails = useCallback(async () => {
     try {
-      const res = await api.get('/org/details');
+      const res = await api.get<OrgDetailsResponse>('/org/details');
       setMembers(res.data.members || []);
       setOrgName(res.data.name);
-      setPlan(res.data.plan_type);
-    } catch (err) {
-      console.error("加载组织信息失败", err);
+      setPlan(res.data.plan_type === 'team' ? 'team' : 'free');
+    } catch (error) {
+      console.error('加载组织信息失败', error);
     } finally {
       setIsLoading(false);
     }
@@ -29,14 +30,14 @@ export default function OrgSettings({ setGlobalOrgName }: { setGlobalOrgName?: (
 
   const handleUpdateOrgName = async () => {
     if (!orgName.trim()) return;
+
     setIsSavingName(true);
     try {
       await api.put('/org/details', { name: orgName });
-      // 💡 实时同步到全局 Sidebar 
       if (setGlobalOrgName) setGlobalOrgName(orgName);
-      alert("空间名称已成功更新");
-    } catch (err) {
-      alert("更新失败");
+      alert('空间名称已成功更新');
+    } catch {
+      alert('更新失败');
     } finally {
       setIsSavingName(false);
     }
@@ -44,11 +45,11 @@ export default function OrgSettings({ setGlobalOrgName }: { setGlobalOrgName?: (
 
   const handleGenerateInvite = async () => {
     try {
-      const res = await api.post('/org/invite');
+      const res = await api.post<OrgInviteResponse>('/org/invite');
       setInviteLink(`${window.location.origin}/register?invite=${res.data.code}`);
-    } catch (err: any) {
-      if (err.response?.status === 402) return;
-      alert("生成失败");
+    } catch (error: unknown) {
+      if (isAxiosError(error) && error.response?.status === 402) return;
+      alert('生成失败');
     }
   };
 
@@ -75,37 +76,37 @@ export default function OrgSettings({ setGlobalOrgName }: { setGlobalOrgName?: (
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-12">
           <div className="lg:col-span-3">
-             <h4 className="text-lg font-black text-gray-800 mb-8 uppercase italic flex items-center gap-2 px-2">团队成员 <span className="text-sm font-medium text-slate-300 not-italic">/ {members.length}</span></h4>
-             <div className="space-y-4">
-                {members.map(m => (
-                  <div key={m.id} className="group flex items-center justify-between p-5 bg-gray-50 hover:bg-white hover:shadow-xl transition-all rounded-[1.5rem] border border-transparent hover:border-gray-100">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center font-black text-gray-500 text-lg group-hover:bg-pathio-500 group-hover:text-white transition-all uppercase">{m.nickname[0]}</div>
-                      <div>
-                        <p className="font-bold text-gray-900">{m.nickname}</p>
-                        <p className="text-xs text-gray-400 italic">{m.email}</p>
-                      </div>
+            <h4 className="text-lg font-black text-gray-800 mb-8 uppercase italic flex items-center gap-2 px-2">团队成员 <span className="text-sm font-medium text-slate-300 not-italic">/ {members.length}</span></h4>
+            <div className="space-y-4">
+              {members.map((member) => (
+                <div key={member.id} className="group flex items-center justify-between p-5 bg-gray-50 hover:bg-white hover:shadow-xl transition-all rounded-[1.5rem] border border-transparent hover:border-gray-100">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center font-black text-gray-500 text-lg group-hover:bg-pathio-500 group-hover:text-white transition-all uppercase">{member.nickname[0]}</div>
+                    <div>
+                      <p className="font-bold text-gray-900">{member.nickname}</p>
+                      <p className="text-xs text-gray-400 italic">{member.email}</p>
                     </div>
-                    <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border ${m.role === 'admin' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-white text-gray-400 border-gray-100'}`}>{m.role}</span>
                   </div>
-                ))}
-             </div>
+                  <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-lg border ${member.role === 'admin' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-white text-gray-400 border-gray-100'}`}>{member.role}</span>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="lg:col-span-2 space-y-10">
             <div className="p-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-sm">
               <label className="text-[10px] font-black text-gray-300 uppercase block mb-3 ml-1">空间展示名称</label>
-              <input type="text" value={orgName} onChange={(e) => setOrgName(e.target.value)} className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-pathio-500 outline-none font-bold text-gray-700 mb-6 text-sm" />
+              <input type="text" value={orgName} onChange={(event) => setOrgName(event.target.value)} className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-pathio-500 outline-none font-bold text-gray-700 mb-6 text-sm" />
               <button onClick={handleUpdateOrgName} disabled={isSavingName} className="w-full text-xs font-black text-pathio-500 hover:text-pathio-900 border border-pathio-100 hover:border-pathio-500 py-4 rounded-2xl transition-all uppercase tracking-widest active:scale-95">{isSavingName ? 'SAVING...' : '保存名称修改'}</button>
             </div>
             <div className="p-8 bg-pathio-50/50 border border-pathio-100 rounded-[2.5rem]">
-               {!inviteLink ? (
-                 <button onClick={handleGenerateInvite} className="w-full py-5 bg-gray-900 text-white rounded-2xl font-black hover:bg-pathio-500 transition-all shadow-xl active:scale-95 uppercase tracking-widest text-xs">生成邀请链接</button>
-               ) : (
-                 <div className="space-y-4 animate-in fade-in zoom-in-95">
-                   <code className="text-[11px] text-gray-400 break-all block font-mono bg-white p-4 rounded-xl border border-pathio-100">{inviteLink}</code>
-                   <button onClick={() => { navigator.clipboard.writeText(inviteLink); alert("已复制"); }} className="w-full py-5 bg-pathio-500 text-white rounded-2xl font-black transition-all active:scale-95 uppercase tracking-widest text-xs">复制链接</button>
-                 </div>
-               )}
+              {!inviteLink ? (
+                <button onClick={handleGenerateInvite} className="w-full py-5 bg-gray-900 text-white rounded-2xl font-black hover:bg-pathio-500 transition-all shadow-xl active:scale-95 uppercase tracking-widest text-xs">生成邀请链接</button>
+              ) : (
+                <div className="space-y-4 animate-in fade-in zoom-in-95">
+                  <code className="text-[11px] text-gray-400 break-all block font-mono bg-white p-4 rounded-xl border border-pathio-100">{inviteLink}</code>
+                  <button onClick={() => { navigator.clipboard.writeText(inviteLink); alert('已复制'); }} className="w-full py-5 bg-pathio-500 text-white rounded-2xl font-black transition-all active:scale-95 uppercase tracking-widest text-xs">复制链接</button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -113,3 +114,4 @@ export default function OrgSettings({ setGlobalOrgName }: { setGlobalOrgName?: (
     </div>
   );
 }
+
