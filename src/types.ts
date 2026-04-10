@@ -60,13 +60,21 @@ export interface LegacyEditorJsDocument {
   blocks?: LegacyEditorJsBlock[];
 }
 
+export interface NoteDocJson extends Record<string, unknown> {
+  type?: string;
+  content?: unknown[];
+}
+
+export interface CanonicalNoteContent {
+  markdown?: string;
+  doc_json?: NoteDocJson | null;
+  text?: string;
+  blocks?: LegacyEditorJsBlock[];
+}
+
 export type NoteContent =
   | string
-  | {
-      markdown?: string;
-      text?: string;
-      blocks?: LegacyEditorJsBlock[];
-    }
+  | CanonicalNoteContent
   | LegacyEditorJsDocument;
 
 export interface NoteResponse {

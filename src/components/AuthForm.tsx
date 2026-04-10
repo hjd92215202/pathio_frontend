@@ -3,7 +3,12 @@ import { isAxiosError } from 'axios';
 import { api } from '../api';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 
-export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
+interface AuthFormProps {
+  mode: 'login' | 'register';
+  onLoginSuccess?: (token: string) => void;
+}
+
+export default function AuthForm({ mode, onLoginSuccess }: AuthFormProps) {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,12 +27,18 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
           email,
           password,
           invite_code: inviteCode,
-        });
+        }, { timeout: 20000 });
         alert('账号注册成功，请先登录。');
         navigate('/login');
       } else {
-        const res = await api.post<{ token: string }>('/auth/login', { username, password });
-        localStorage.setItem('token', res.data.token);
+        const res = await api.post<{ token?: string }>('/auth/login', { username, password }, { timeout: 20000 });
+        const token = res.data?.token;
+        if (typeof token !== 'string' || token.trim() === '') {
+          alert('登录失败：服务器未返回有效 token');
+          return;
+        }
+        localStorage.setItem('token', token);
+        onLoginSuccess?.(token);
         navigate('/');
       }
     } catch (error: unknown) {

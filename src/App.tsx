@@ -6,7 +6,7 @@ import '@xyflow/react/dist/style.css';
 import { api } from './api';
 import PathioNode from './components/PathioNode';
 import NoteView from './components/NoteView';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import ShareView from './components/ShareView';
 import Home from './components/Home';
 import AuthForm from './components/AuthForm';
@@ -360,12 +360,16 @@ function CanvasViewport({ roadmapId, onToggleSidebar, isSidebarCollapsed, setDia
 }
 
 export default function App() {
-  const authToken = localStorage.getItem('token');
+  const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem('token'));
   const [currentRoadmapId, setCurrentRoadmapId] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [orgName, setOrgName] = useState('My Workspace');
   const [dialog, setDialog] = useState<DialogConfig>({ isOpen: false, title: '', type: 'input' as DialogType, onConfirm: () => {} });
+
+  const handleLoginSuccess = useCallback((token: string) => {
+    setAuthToken(token);
+  }, []);
 
   useEffect(() => {
     const interceptor = api.interceptors.response.use(
@@ -390,20 +394,20 @@ export default function App() {
   }, [authToken]);
 
   return (
-    <div className="w-screen h-screen selection:bg-pathio-100 selection:text-pathio-900 bg-gray-900 overflow-hidden">
+    <div className="w-screen min-h-screen selection:bg-pathio-100 selection:text-pathio-900 bg-gray-900">
       <Dialog {...dialog} onClose={() => setDialog((prev) => ({ ...prev, isOpen: false }))} />
       <UpgradeModal isOpen={isUpgradeModalOpen} onClose={() => setIsUpgradeModalOpen(false)} />
       <Routes>
         <Route path="/" element={authToken ? (
-          <div className="flex w-full h-full overflow-hidden bg-gray-900 transition-all duration-300">
+          <div className="flex w-full h-screen overflow-hidden bg-gray-900 transition-all duration-300">
             <Sidebar orgName={orgName} currentId={currentRoadmapId} onSelect={setCurrentRoadmapId} isCollapsed={isSidebarCollapsed} setDialog={setDialog} />
             <ReactFlowProvider>
               <CanvasViewport roadmapId={currentRoadmapId} onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)} isSidebarCollapsed={isSidebarCollapsed} setDialog={setDialog} setGlobalOrgName={setOrgName} />
             </ReactFlowProvider>
           </div>
         ) : <Home />} />
-        <Route path="/login" element={<AuthForm mode="login" />} />
-        <Route path="/register" element={<AuthForm mode="register" />} />
+        <Route path="/login" element={authToken ? <Navigate to="/" replace /> : <AuthForm mode="login" onLoginSuccess={handleLoginSuccess} />} />
+        <Route path="/register" element={authToken ? <Navigate to="/" replace /> : <AuthForm mode="register" onLoginSuccess={handleLoginSuccess} />} />
         <Route path="/share/:token" element={<ShareView />} />
       </Routes>
     </div>

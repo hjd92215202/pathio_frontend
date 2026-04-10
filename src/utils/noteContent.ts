@@ -134,11 +134,17 @@ export function extractMarkdownContent(content: NoteContent): string {
   }
 
   if (typeof content.markdown === 'string') {
-    return normalizeLineBreaks(content.markdown);
+    const normalizedMarkdown = normalizeLineBreaks(content.markdown);
+    if (normalizedMarkdown.trim().length > 0) {
+      return normalizedMarkdown;
+    }
   }
 
   if (typeof content.text === 'string') {
-    return normalizeLineBreaks(content.text);
+    const normalizedText = normalizeLineBreaks(content.text);
+    if (normalizedText.trim().length > 0) {
+      return normalizedText;
+    }
   }
 
   if (Array.isArray(content.blocks)) {

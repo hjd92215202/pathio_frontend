@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { Extension } from '@tiptap/core';
 import type { Editor, JSONContent } from '@tiptap/core';
@@ -13,7 +13,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { common, createLowlight } from 'lowlight';
 import { isAxiosError } from 'axios';
 import { api } from '../api';
-import type { NoteResponse, PathioEdgeType, PathioNodeType, Reference, ReferenceListResponse } from '../types';
+import type { CanonicalNoteContent, NoteDocJson, NoteResponse, PathioEdgeType, PathioNodeType, Reference, ReferenceListResponse } from '../types';
 import { extractMarkdownContent, looksLikeMarkdownClipboardText, normalizeLineBreaks } from '../utils/noteContent';
 import { extractReferences, hasReferencePayload } from '../utils/references';
 
@@ -21,10 +21,47 @@ const lowlight = createLowlight(common);
 const HEADING_SELECTOR = 'h1, h2, h3, h4, h5, h6';
 const TOC_SCROLL_OFFSET = 24;
 const ACTIVE_TOC_OFFSET = 96;
+const MAX_PASTE_MARKDOWN_LENGTH = 200_000;
 
 type SaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 type TocItem = { id: string; text: string; level: number; top: number };
 type ClipboardPayload = { plainText: string; htmlText: string };
+type PersistPayload = { content: CanonicalNoteContent };
+
+interface EditorErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface EditorErrorBoundaryState {
+  hasError: boolean;
+}
+
+class EditorErrorBoundary extends Component<EditorErrorBoundaryProps, EditorErrorBoundaryState> {
+  constructor(props: EditorErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): EditorErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('[NoteView] Editor subtree crashed.', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full rounded-2xl border border-rose-100 bg-rose-50 px-6 py-5 text-xs font-bold text-rose-500">
+          编辑器渲染异常，请刷新后重试。
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 interface NoteViewProps {
   nodeId: string;
@@ -38,6 +75,23 @@ interface NoteViewProps {
 
 function getMarkdownContent(editor: Editor): string {
   return editor.getMarkdown();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isNoteDocJson(value: unknown): value is NoteDocJson {
+  return isRecord(value) && typeof value.type === 'string';
+}
+
+function extractDocJsonContent(content: NoteResponse['content']): JSONContent | null {
+  if (!isRecord(content) || !('doc_json' in content)) {
+    return null;
+  }
+
+  const docJson = content.doc_json;
+  return isNoteDocJson(docJson) ? (docJson as JSONContent) : null;
 }
 
 function buildPlainTextParagraphs(text: string): JSONContent[] {
@@ -75,18 +129,10 @@ function normalizeClipboardComparisonText(value: string): string {
     .trim();
 }
 
-function extractHtmlClipboardText(html: string): string {
-  if (!html.trim()) {
-    return '';
+function notifyPasteFallback() {
+  if (typeof window !== 'undefined') {
+    window.alert('Markdown 解析失败，已自动降级为纯文本粘贴。');
   }
-
-  if (typeof document === 'undefined') {
-    return html;
-  }
-
-  const container = document.createElement('div');
-  container.innerHTML = html;
-  return container.textContent?.replace(/\u00a0/g, ' ') ?? '';
 }
 
 function shouldHandleMarkdownPaste(payload: ClipboardPayload): boolean {
@@ -96,12 +142,7 @@ function shouldHandleMarkdownPaste(payload: ClipboardPayload): boolean {
     return false;
   }
 
-  if (!payload.htmlText.trim()) {
-    return true;
-  }
-
-  const normalizedHtmlText = normalizeClipboardComparisonText(extractHtmlClipboardText(payload.htmlText));
-  return Boolean(normalizedHtmlText) && normalizedHtmlText === normalizedPlainText;
+  return true;
 }
 
 function isSelectionInsideCode(editor: Editor): boolean {
@@ -128,6 +169,15 @@ function parseMarkdownContent(editor: Editor, markdown: string): JSONContent | n
   }
 
   return editor.markdown.parse(normalizeLineBreaks(markdown));
+}
+
+function setEditorDocJsonContentSafely(editor: Editor, docJson: JSONContent): boolean {
+  try {
+    return editor.commands.setContent(docJson, { emitUpdate: false });
+  } catch (error) {
+    console.error('[NoteView] Failed to load doc_json payload safely. Falling back to markdown parser.', error);
+    return false;
+  }
 }
 
 function setEditorMarkdownContentSafely(editor: Editor, markdown: string, context: 'load' | 'reset'): boolean {
@@ -160,14 +210,37 @@ function insertMarkdownContentSafely(editor: Editor, markdown: string): boolean 
     const parsedContent = parseMarkdownContent(editor, markdown);
 
     if (!parsedContent) {
+      notifyPasteFallback();
       return insertPlainTextContent(editor, markdown);
     }
 
     return editor.commands.insertContent(parsedContent, { updateSelection: true });
   } catch (error) {
     console.error('[NoteView] Failed to paste markdown content safely. Falling back to plain text.', error);
+    notifyPasteFallback();
     return insertPlainTextContent(editor, markdown);
   }
+}
+
+function buildPersistContent(editor: Editor): CanonicalNoteContent {
+  let markdown = '';
+  let docJson: JSONContent | null = null;
+
+  try {
+    docJson = editor.getJSON();
+  } catch (error) {
+    console.error('[NoteView] Failed to export editor doc_json payload.', error);
+    docJson = null;
+  }
+
+  try {
+    markdown = normalizeLineBreaks(getMarkdownContent(editor));
+  } catch (error) {
+    console.error('[NoteView] Failed to export canonical markdown payload.', error);
+    markdown = '';
+  }
+
+  return { markdown, doc_json: docJson };
 }
 
 function resolveActiveTocId(items: TocItem[], scrollTop: number): string | null {
@@ -213,6 +286,10 @@ const MarkdownPasteHandler = Extension.create({
             }
 
             event.preventDefault();
+            if (payload.plainText.length > MAX_PASTE_MARKDOWN_LENGTH) {
+              notifyPasteFallback();
+              return insertPlainTextContent(this.editor, payload.plainText);
+            }
             return insertMarkdownContentSafely(this.editor, payload.plainText);
           },
         },
@@ -377,12 +454,13 @@ export default function NoteView({
   }, []);
 
   const persistContent = useCallback(
-    async (content: string) => {
+    async (editorInstance: Editor) => {
       if (readOnly || !isDirtyRef.current) return;
 
       setSaveStatus('saving');
       try {
-        await api.put(`/nodes/${nodeId}/note`, { content });
+        const payload: PersistPayload = { content: buildPersistContent(editorInstance) };
+        await api.put(`/nodes/${nodeId}/note`, payload);
         setSaveStatus('saved');
         setLastSavedAt(new Date());
         isDirtyRef.current = false;
@@ -415,7 +493,12 @@ export default function NoteView({
 
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => {
-          persistContent(getMarkdownContent(editorInstance));
+          try {
+            persistContent(editorInstance);
+          } catch (error) {
+            console.error('[NoteView] Failed to persist updated editor content safely.', error);
+            setSaveStatus('error');
+          }
         }, 3000);
       },
     },
@@ -478,11 +561,19 @@ export default function NoteView({
         return;
       }
 
-      const content = extractMarkdownContent(noteResponse.data.content);
+      const noteContent = noteResponse.data.content;
+      const markdownContent = extractMarkdownContent(noteContent);
+      const docJsonContent = extractDocJsonContent(noteContent);
       const fallbackReferences = extractReferences(noteResponse.data);
       const hasEmbeddedReferences = hasReferencePayload(noteResponse.data);
 
-      setEditorMarkdownContentSafely(editor, content, 'load');
+      const loadedFromDocJson = docJsonContent
+        ? setEditorDocJsonContentSafely(editor, docJsonContent)
+        : false;
+
+      if (!loadedFromDocJson) {
+        setEditorMarkdownContentSafely(editor, markdownContent, 'load');
+      }
 
       let nextReferences = fallbackReferences;
 
@@ -537,7 +628,12 @@ export default function NoteView({
         tocRefreshFrameRef.current = null;
       }
       if (isDirtyRef.current && !readOnly) {
-        persistContent(getMarkdownContent(editor));
+        try {
+          persistContent(editor);
+        } catch (error) {
+          console.error('[NoteView] Failed to flush unsaved editor content on cleanup.', error);
+          setSaveStatus('error');
+        }
       }
     };
   }, [nodeId, editor, readOnly, shareToken, persistContent, scheduleTocRefresh]);
@@ -620,7 +716,9 @@ export default function NoteView({
 
         <section ref={contentScrollRef} className="flex-1 overflow-y-auto bg-white px-16 py-24 scroll-smooth custom-scrollbar">
           <div ref={contentBodyRef} className="max-w-3xl mx-auto min-h-screen">
-            <EditorContent editor={editor} />
+            <EditorErrorBoundary>
+              <EditorContent editor={editor} />
+            </EditorErrorBoundary>
           </div>
         </section>
 
