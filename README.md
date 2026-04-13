@@ -1,82 +1,45 @@
-# React + TypeScript + Vite
+# Pathio Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend for Pathio knowledge-map workspace, built with React + TypeScript + Vite.
 
-Currently, two official plugins are available:
+## Run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Build:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run build
 ```
+
+## API Base URL
+
+The app uses:
+
+- `http://127.0.0.1:3000/api`
+
+See `src/api.ts`.
+
+## Plan Limit UX Contract
+
+The frontend keeps the current UI and design language. It relies on backend `402 Payment Required` to show upgrade flow:
+
+- A global Axios interceptor opens `UpgradeModal` on any `402`.
+- No extra frontend quota checks are required for roadmap/node creation.
+
+Current free-plan policy expected from backend:
+
+- Up to 3 roadmaps per workspace.
+- Up to 50 total nodes per workspace (across all roadmaps).
 
 ## Share Note Refs Contract
 
-The frontend expects `GET /api/share/:token/notes/:nodeId` to be the authoritative share-note read API.
+The frontend treats `GET /api/share/:token/notes/:nodeId` as the main share-note API.
 
-Recommended response shape:
+Recommended response:
 
 ```json
 {
@@ -92,15 +55,8 @@ Recommended response shape:
 }
 ```
 
-Contract rules:
+Rules:
 
-- `references` should always be present on the share-note response, even when empty.
-- Use `[]` for no attachments. Do not omit the field and do not return `null`.
-- Attachment fields should be normalized to `id`, `node_id`, `title`, and `url`.
-
-Optional compatibility endpoint:
-
-- `GET /api/share/:token/notes/:nodeId/references`
-- Recommended response: `Reference[]`
-- Compatible response: `{ "references": Reference[] }`
-- If this endpoint is not implemented, return `404` or `405` so the frontend safely falls back to the main share-note payload.
+- `references` should always exist (use `[]` when empty).
+- Do not return `null` for `references`.
+- Reference fields should be `id`, `node_id`, `title`, `url`.
