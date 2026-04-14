@@ -110,12 +110,51 @@ export interface OrgMember {
 
 export interface OrgDetailsResponse {
   name: string;
-  plan_type: 'free' | 'team' | string;
+  plan_type: 'free' | 'team' | 'enterprise' | string;
+  billing_status?: 'inactive' | 'active' | 'past_due' | string;
+  billing_market?: 'cn' | 'global' | string;
+  current_period_end?: string | null;
   members: OrgMember[];
 }
 
 export interface OrgInviteResponse {
   code: string;
+}
+
+export interface PlanEntitlement {
+  plan_type: 'free' | 'team' | 'enterprise' | string;
+  market: 'cn' | 'global' | string;
+  currency: string;
+  price_cents: number;
+  billing_interval: string;
+  max_roadmaps: number | null;
+  max_nodes_per_org: number | null;
+  max_members_per_org: number | null;
+  can_public_share: boolean;
+  priority_support: boolean;
+  sso_enabled: boolean;
+  audit_log_enabled: boolean;
+  private_deployment: boolean;
+}
+
+export interface BillingPlansResponse {
+  generated_at: string;
+  plans: PlanEntitlement[];
+}
+
+export interface CreateCheckoutSessionReq {
+  plan_type?: 'team' | 'enterprise';
+  market?: 'cn' | 'global';
+  seats?: number;
+  success_url?: string;
+  cancel_url?: string;
+}
+
+export interface CreateCheckoutSessionResp {
+  external_session_id: string;
+  checkout_url: string;
+  provider: string;
+  status: string;
 }
 
 export type DialogType = 'input' | 'confirm';

@@ -107,7 +107,7 @@ export default function AuthForm({ mode, onLoginSuccess }: AuthFormProps) {
             </label>
             <input
               type="password"
-              placeholder="????????"
+              placeholder="请输入密码"
               required
               className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-pathio-500 outline-none transition-all font-bold text-gray-700"
               onChange={(e) => setPassword(e.target.value)}
@@ -131,4 +131,3 @@ export default function AuthForm({ mode, onLoginSuccess }: AuthFormProps) {
     </div>
   );
 }
-

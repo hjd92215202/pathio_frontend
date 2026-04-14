@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ReactFlow, Background, Controls, useNodesState, useEdgesState, ReactFlowProvider, useReactFlow, addEdge, type Connection } from '@xyflow/react';
 import { isAxiosError } from 'axios';
 import '@xyflow/react/dist/style.css';
-import { api } from './api';
+import { api, createCheckoutSession, trackEvent } from './api';
 import PathioNode from './components/PathioNode';
 import NoteView from './components/NoteView';
 import { Routes, Route, Navigate } from 'react-router-dom';
@@ -33,7 +33,17 @@ interface CanvasViewportProps {
   setGlobalOrgName: (name: string) => void;
 }
 
-function UpgradeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+function UpgradeModal({
+  isOpen,
+  onClose,
+  onUpgrade,
+  isUpgrading,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onUpgrade: () => void;
+  isUpgrading: boolean;
+}) {
   if (!isOpen) return null;
 
   return (
@@ -68,7 +78,7 @@ function UpgradeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
               <p className="text-sm font-black text-gray-900 uppercase tracking-wider">团队标准版</p>
               <p className="text-[11px] text-gray-400 mt-2 font-medium">适合核心研究团队，沉淀组织数字资产</p>
             </div>
-            <button className="w-full py-5 bg-gray-900 text-white rounded-2xl font-black hover:bg-pathio-500 shadow-xl active:scale-95 mb-6 uppercase tracking-widest text-xs transition-all">立即升级方案</button>
+            <button onClick={onUpgrade} disabled={isUpgrading} className="w-full py-5 bg-gray-900 text-white rounded-2xl font-black hover:bg-pathio-500 shadow-xl active:scale-95 mb-6 uppercase tracking-widest text-xs transition-all">{isUpgrading ? '处理中...' : '立即升级方案'}</button>
             <button onClick={onClose} className="w-full text-xs font-bold text-gray-300 hover:text-gray-500 transition-colors uppercase tracking-[0.2em]">稍后再说</button>
           </div>
         </div>
@@ -337,6 +347,7 @@ function CanvasViewport({ roadmapId, onToggleSidebar, isSidebarCollapsed, setDia
                       const roadmap = res.data.find((item) => item.id === roadmapId);
                       if (roadmap?.share_token) {
                         await navigator.clipboard.writeText(`${window.location.origin}/share/${roadmap.share_token}`);
+                        trackEvent('shared_link_copied', { roadmap_id: roadmapId, share_token: roadmap.share_token });
                         alert('链接已复制！');
                       }
                     } finally {
@@ -364,11 +375,32 @@ export default function App() {
   const [currentRoadmapId, setCurrentRoadmapId] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [isUpgrading, setIsUpgrading] = useState(false);
   const [orgName, setOrgName] = useState('My Workspace');
   const [dialog, setDialog] = useState<DialogConfig>({ isOpen: false, title: '', type: 'input' as DialogType, onConfirm: () => {} });
 
   const handleLoginSuccess = useCallback((token: string) => {
     setAuthToken(token);
+  }, []);
+
+  const handleStartCheckout = useCallback(async () => {
+    setIsUpgrading(true);
+    try {
+      const market = navigator.language.toLowerCase().startsWith('zh') ? 'cn' : 'global';
+      const session = await createCheckoutSession({
+        plan_type: 'team',
+        market,
+        seats: 1,
+        success_url: window.location.origin,
+        cancel_url: window.location.href,
+      });
+      trackEvent('checkout_started', { source: 'upgrade_modal', market, session_id: session.external_session_id });
+      window.open(session.checkout_url, '_blank', 'noopener,noreferrer');
+    } catch {
+      alert('创建升级会话失败，请稍后重试');
+    } finally {
+      setIsUpgrading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -377,6 +409,7 @@ export default function App() {
       (error) => {
         if (error.response?.status === 402) {
           setIsUpgradeModalOpen(true);
+          trackEvent('upgrade_modal_opened', { source: 'api_402' });
         }
         return Promise.reject(error);
       }
@@ -396,7 +429,7 @@ export default function App() {
   return (
     <div className="w-screen min-h-screen selection:bg-pathio-100 selection:text-pathio-900 bg-gray-900">
       <Dialog {...dialog} onClose={() => setDialog((prev) => ({ ...prev, isOpen: false }))} />
-      <UpgradeModal isOpen={isUpgradeModalOpen} onClose={() => setIsUpgradeModalOpen(false)} />
+      <UpgradeModal isOpen={isUpgradeModalOpen} onClose={() => setIsUpgradeModalOpen(false)} onUpgrade={handleStartCheckout} isUpgrading={isUpgrading} />
       <Routes>
         <Route path="/" element={authToken ? (
           <div className="flex w-full h-screen overflow-hidden bg-gray-900 transition-all duration-300">

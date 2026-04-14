@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState, useCallback } from 'react';
 import { isAxiosError } from 'axios';
-import { api } from '../api';
+import { api, createCheckoutSession, trackEvent } from '../api';
 import type { OrgDetailsResponse, OrgInviteResponse, OrgMember } from '../types';
 
 export default function OrgSettings({ setGlobalOrgName }: { setGlobalOrgName?: (name: string) => void }) {
@@ -10,13 +10,14 @@ export default function OrgSettings({ setGlobalOrgName }: { setGlobalOrgName?: (
   const [inviteLink, setInviteLink] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingName, setIsSavingName] = useState(false);
+  const [isUpgrading, setIsUpgrading] = useState(false);
 
   const fetchOrgDetails = useCallback(async () => {
     try {
       const res = await api.get<OrgDetailsResponse>('/org/details');
       setMembers(res.data.members || []);
       setOrgName(res.data.name);
-      setPlan(res.data.plan_type === 'team' ? 'team' : 'free');
+      setPlan(res.data.plan_type === 'free' ? 'free' : 'team');
     } catch (error) {
       console.error('加载组织信息失败', error);
     } finally {
@@ -53,6 +54,26 @@ export default function OrgSettings({ setGlobalOrgName }: { setGlobalOrgName?: (
     }
   };
 
+  const handleUpgrade = async () => {
+    setIsUpgrading(true);
+    try {
+      const market = navigator.language.toLowerCase().startsWith('zh') ? 'cn' : 'global';
+      const session = await createCheckoutSession({
+        plan_type: 'team',
+        market,
+        seats: 1,
+        success_url: window.location.origin,
+        cancel_url: window.location.href,
+      });
+      trackEvent('checkout_started', { source: 'org_settings', market, session_id: session.external_session_id });
+      window.open(session.checkout_url, '_blank', 'noopener,noreferrer');
+    } catch {
+      alert('暂时无法创建升级会话');
+    } finally {
+      setIsUpgrading(false);
+    }
+  };
+
   if (isLoading) return <div className="h-full flex items-center justify-center font-black italic text-slate-200">LOADING...</div>;
 
   return (
@@ -69,7 +90,7 @@ export default function OrgSettings({ setGlobalOrgName }: { setGlobalOrgName?: (
               <span className="text-[10px] font-black uppercase tracking-[0.3em] text-pathio-500 mb-2 block">Active Subscription</span>
               <h3 className="text-3xl font-black text-white italic uppercase mb-2 leading-none">{plan === 'free' ? 'Free 免费体验版' : 'Team 团队协作版'}</h3>
             </div>
-            {plan === 'free' && <button onClick={() => api.post('/org/invite').catch(() => {})} className="bg-pathio-500 hover:bg-white hover:text-pathio-900 text-white px-8 py-4 rounded-2xl font-black transition-all shadow-xl active:scale-95 uppercase text-xs">升级方案 →</button>}
+            {plan === 'free' && <button onClick={handleUpgrade} disabled={isUpgrading} className="bg-pathio-500 hover:bg-white hover:text-pathio-900 text-white px-8 py-4 rounded-2xl font-black transition-all shadow-xl active:scale-95 uppercase text-xs">{isUpgrading ? '处理中...' : '升级方案 →'}</button>}
           </div>
           <div className="absolute top-0 right-0 w-64 h-64 bg-pathio-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
         </section>

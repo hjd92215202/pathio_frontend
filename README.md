@@ -28,12 +28,24 @@ See `src/api.ts`.
 The frontend keeps the current UI and design language. It relies on backend `402 Payment Required` to show upgrade flow:
 
 - A global Axios interceptor opens `UpgradeModal` on any `402`.
+- Upgrade CTA now calls `POST /api/billing/checkout-session` (no UI redesign).
 - No extra frontend quota checks are required for roadmap/node creation.
 
 Current free-plan policy expected from backend:
 
 - Up to 3 roadmaps per workspace.
 - Up to 50 total nodes per workspace (across all roadmaps).
+- Up to 2 workspace members.
+
+## Event Tracking Contract
+
+Frontend sends allowlisted events through `POST /api/events`:
+
+- `upgrade_modal_opened`
+- `checkout_started`
+- `shared_link_copied`
+
+See `trackEvent` in `src/api.ts`.
 
 ## Share Note Refs Contract
 
